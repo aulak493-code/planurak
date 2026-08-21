@@ -13,6 +13,7 @@ export const defaultBlueprint: ServerBlueprint = {
       channels: [
         { name: "welcome", type: "text", topic: "ยินดีต้อนรับสู่เซิร์ฟเวอร์" },
         { name: "rules", type: "text", topic: "กติกาชุมชน" },
+        { name: "verification", type: "text", topic: "กดยืนยันเพื่อเข้าถึงชุมชน" },
       ],
     },
     {
@@ -20,6 +21,13 @@ export const defaultBlueprint: ServerBlueprint = {
       channels: [
         { name: "general", type: "text", topic: "พูดคุยทั่วไป" },
         { name: "support", type: "text", topic: "ขอความช่วยเหลือ" },
+      ],
+    },
+    {
+      name: "SUPPORT",
+      channels: [
+        { name: "tickets", type: "text", topic: "เปิด Ticket เพื่อขอความช่วยเหลือ" },
+        { name: "announcements", type: "text", topic: "ประกาศสำคัญจากทีมงาน" },
       ],
     },
   ],
