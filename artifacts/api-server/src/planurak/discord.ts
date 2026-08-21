@@ -5,6 +5,9 @@ import {
   GatewayIntentBits,
   MessageFlags,
   PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   REST,
   Routes,
   SlashCommandBuilder,
@@ -76,6 +79,25 @@ async function applyBlueprint(guild: import("discord.js").Guild) {
   return actions.length;
 }
 
+async function deployVerificationPanel(guild: import("discord.js").Guild) {
+  const verificationChannel = guild.channels.cache.find(
+    (channel) => channel.type === ChannelType.GuildText && channel.name === "verification",
+  );
+  if (!verificationChannel || verificationChannel.type !== ChannelType.GuildText) return false;
+  const panel = new EmbedBuilder()
+    .setTitle("ยืนยันตัวตนก่อนเข้าชุมชน")
+    .setDescription("กรุณาอ่านกติกาของเซิร์ฟเวอร์ แล้วกดปุ่มด้านล่างเพื่อรับ Role Verified")
+    .setColor(0x36c98f);
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("planurak:verify")
+      .setLabel("ยืนยันตัวตน")
+      .setStyle(ButtonStyle.Success),
+  );
+  await verificationChannel.send({ embeds: [panel], components: [row] });
+  return true;
+}
+
 export async function startDiscordBot() {
   const token = process.env.DISCORD_TOKEN;
   if (!token) {
@@ -94,8 +116,19 @@ export async function startDiscordBot() {
     });
     client.once("clientReady", () => logger.info({ user: client.user?.tag }, "PLANURAK Discord bot ready"));
     client.on("interactionCreate", async (interaction) => {
-      if (!interaction.isChatInputCommand() || interaction.commandName !== "planurak" || !interaction.guild) return;
+      if (!interaction.guild) return;
       try {
+        if (interaction.isButton() && interaction.customId === "planurak:verify") {
+          const verifiedRole = interaction.guild.roles.cache.find((role) => role.name === "Verified");
+          if (!verifiedRole || !interaction.member || !("roles" in interaction.member) || !("add" in interaction.member.roles)) {
+            await interaction.reply({ content: "ยังไม่พบ Role Verified กรุณาให้แอดมินรัน `/planurak apply` อีกครั้ง", flags: MessageFlags.Ephemeral });
+            return;
+          }
+          await interaction.member.roles.add(verifiedRole, "PLANURAK verification");
+          await interaction.reply({ content: "ยืนยันสำเร็จแล้ว ยินดีต้อนรับเข้าสู่ชุมชน", flags: MessageFlags.Ephemeral });
+          return;
+        }
+        if (!interaction.isChatInputCommand() || interaction.commandName !== "planurak") return;
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
           if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: "คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลเซิร์ฟเวอร์", flags: MessageFlags.Ephemeral });
@@ -124,7 +157,8 @@ export async function startDiscordBot() {
           await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         }
         const created = await applyBlueprint(interaction.guild);
-        await interaction.editReply(`สร้างสำเร็จ ${created} รายการ\nระบบใช้ idempotent diff และไม่ลบของเดิม`);
+        const panelDeployed = await deployVerificationPanel(interaction.guild);
+        await interaction.editReply(`สร้างสำเร็จ ${created} รายการ${panelDeployed ? " และติดตั้ง Verification Panel แล้ว" : ""}\nระบบใช้ idempotent diff และไม่ลบของเดิม`);
       } catch (error) {
         logger.error({ err: error, subcommand: interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "unknown" }, "Discord interaction failed");
         if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
