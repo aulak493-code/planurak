@@ -91,7 +91,7 @@ export async function startDiscordBot() {
     const client = new Client({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
     });
-    client.once("ready", () => logger.info({ user: client.user?.tag }, "PLANURAK Discord bot ready"));
+    client.once("clientReady", () => logger.info({ user: client.user?.tag }, "PLANURAK Discord bot ready"));
     client.on("interactionCreate", async (interaction) => {
       if (!interaction.isChatInputCommand() || interaction.commandName !== "planurak" || !interaction.guild) return;
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
