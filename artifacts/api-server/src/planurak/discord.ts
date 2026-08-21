@@ -3,6 +3,7 @@ import {
   Client,
   EmbedBuilder,
   GatewayIntentBits,
+  MessageFlags,
   PermissionFlagsBits,
   REST,
   Routes,
@@ -94,27 +95,42 @@ export async function startDiscordBot() {
     client.once("clientReady", () => logger.info({ user: client.user?.tag }, "PLANURAK Discord bot ready"));
     client.on("interactionCreate", async (interaction) => {
       if (!interaction.isChatInputCommand() || interaction.commandName !== "planurak" || !interaction.guild) return;
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-        await interaction.reply({ content: "คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลเซิร์ฟเวอร์", ephemeral: true });
-        return;
+      try {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลเซิร์ฟเวอร์", flags: MessageFlags.Ephemeral });
+          }
+          return;
+        }
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand === "health") {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "PLANURAK พร้อมทำงาน • สิทธิ์ตรวจสอบผ่าน • Safe mode เปิดอยู่", flags: MessageFlags.Ephemeral });
+          }
+          return;
+        }
+        const actions = buildDiff(defaultBlueprint, getExisting(interaction.guild));
+        if (subcommand === "preview") {
+          const embed = new EmbedBuilder()
+            .setTitle("PLANURAK · Blueprint Preview")
+            .setDescription(diffText(actions))
+            .setFooter({ text: "Preview only — ยังไม่มีการเปลี่ยนแปลง" });
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+          }
+          return;
+        }
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        }
+        const created = await applyBlueprint(interaction.guild);
+        await interaction.editReply(`สร้างสำเร็จ ${created} รายการ\nระบบใช้ idempotent diff และไม่ลบของเดิม`);
+      } catch (error) {
+        logger.error({ err: error, subcommand: interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "unknown" }, "Discord interaction failed");
+        if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "เกิดข้อผิดพลาดชั่วคราว ระบบยังทำงานต่อและบันทึกเหตุการณ์ไว้แล้ว", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+        }
       }
-      const subcommand = interaction.options.getSubcommand();
-      if (subcommand === "health") {
-        await interaction.reply({ content: "PLANURAK พร้อมทำงาน • สิทธิ์ตรวจสอบผ่าน • Safe mode เปิดอยู่", ephemeral: true });
-        return;
-      }
-      const actions = buildDiff(defaultBlueprint, getExisting(interaction.guild));
-      if (subcommand === "preview") {
-        const embed = new EmbedBuilder()
-          .setTitle("PLANURAK · Blueprint Preview")
-          .setDescription(diffText(actions))
-          .setFooter({ text: "Preview only — ยังไม่มีการเปลี่ยนแปลง" });
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-        return;
-      }
-      await interaction.deferReply({ ephemeral: true });
-      const created = await applyBlueprint(interaction.guild);
-      await interaction.editReply(`สร้างสำเร็จ ${created} รายการ\nระบบใช้ idempotent diff และไม่ลบของเดิม`);
     });
     await client.login(token);
   } catch (error) {
